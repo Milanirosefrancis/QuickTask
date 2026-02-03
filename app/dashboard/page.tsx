@@ -1,11 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase"
-import { CreateTaskForm } from "@/components/create-task-form"
-import { EditTaskDialog } from "@/components/edit-task-dialog"
-import { ShareTaskDialog } from "@/components/share-task-dialog"
-import { ThemeToggle } from "@/components/theme-toggle" // Make sure this is imported
+// We go up two levels to find the lib folder
+import { createClient } from "../../lib/supabase"
+// We go up two levels to find the components folder
+import { CreateTaskForm } from "../../components/create-task-form"
+import { EditTaskDialog } from "../../components/edit-task-dialog"
+import { ShareTaskDialog } from "../../components/share-task-dialog"
+import { ThemeToggle } from "../../components/theme-toggle" 
+// These stay as @/ because shadcn components usually handle their own alias
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -27,16 +30,18 @@ export default function DashboardPage() {
     if (data) setTasks(data)
   }
 
-  // Missing: Toggle Complete Logic
-  const toggleComplete = async (id: string, currentState: boolean) => {
-    await supabase
+  // UPDATED: This now removes the task instantly when the checkbox is clicked
+  const toggleComplete = async (id: string) => {
+    const { error } = await supabase
       .from('tasks')
-      .update({ is_completed: !currentState })
+      .delete()
       .eq('id', id)
-    fetchTasks()
+    
+    if (!error) {
+      fetchTasks()
+    }
   }
 
-  // Missing: Delete Logic
   const deleteTask = async (id: string) => {
     await supabase.from('tasks').delete().eq('id', id)
     fetchTasks()
@@ -74,7 +79,6 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-4xl mx-auto p-4">
-      {/* Fixed: Header Layout */}
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">QuickTask Professional</h1>
         <ThemeToggle />
@@ -82,7 +86,6 @@ export default function DashboardPage() {
 
       <CreateTaskForm onTaskCreated={fetchTasks} />
 
-      {/* Search and Filter UI */}
       <div className="flex flex-col md:flex-row gap-4 my-6">
         <div className="relative flex-1">
           <input 
@@ -120,10 +123,10 @@ export default function DashboardPage() {
                               <GripVertical className="text-muted-foreground h-5 w-5 cursor-grab" />
                             </div>
                             <Checkbox 
-                              checked={task.is_completed}
-                              onCheckedChange={() => toggleComplete(task.id, task.is_completed)} 
+                              checked={false} 
+                              onCheckedChange={() => toggleComplete(task.id)} 
                             />
-                            <span className={task.is_completed ? "line-through text-muted-foreground" : ""}>
+                            <span className="text-foreground">
                               {task.title}
                             </span>
                           </div>
@@ -154,4 +157,4 @@ export default function DashboardPage() {
       </DragDropContext>
     </div>
   )
-}//final for 2 feb 3:10 pm
+}
