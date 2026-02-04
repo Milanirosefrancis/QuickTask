@@ -4,7 +4,6 @@ import { useState } from "react"
 import { createClient } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-// We are adding Select components here
 import {
   Select,
   SelectContent,
@@ -12,12 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus } from "lucide-react"
+import { Plus, Calendar, Clock } from "lucide-react"
 
 export function CreateTaskForm({ onTaskCreated }: { onTaskCreated: () => void }) {
   const [title, setTitle] = useState("")
-  // 1. Create a new state to store the priority (default is 'Medium')
   const [priority, setPriority] = useState("Medium")
+  const [dueDate, setDueDate] = useState("")
+  
   const supabase = createClient()
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -26,34 +26,45 @@ export function CreateTaskForm({ onTaskCreated }: { onTaskCreated: () => void })
 
     const { data: { user } } = await supabase.auth.getUser()
     
-    // 2. Add 'priority' to the insert list below
     const { error } = await supabase.from('tasks').insert([
       { 
         title, 
         user_id: user?.id,
-        priority: priority // This sends your choice to the database
+        priority: priority,
+        due_date: dueDate ? new Date(dueDate).toISOString() : null
       }
     ])
 
     if (!error) {
       setTitle("")
-      setPriority("Medium") // Reset to Medium after adding
+      setPriority("Medium")
+      setDueDate("") 
       onTaskCreated() 
     }
   }
 
   return (
-    <form onSubmit={handleCreate} className="mb-8 flex gap-2 items-center">
+    <form onSubmit={handleCreate} className="mb-8 flex flex-wrap gap-2 items-center">
       <Input 
         placeholder="What needs to be done?" 
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        className="flex-1"
+        className="flex-1 min-w-[200px]"
       />
 
-      {/* 3. Add the Dropdown Menu */}
+      {/* UPDATED: Date AND Time Input Field */}
+      <div className="flex items-center gap-2 border rounded-md px-2 bg-background">
+        <Clock className="h-4 w-4 text-muted-foreground" />
+        <input 
+          type="datetime-local" 
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="bg-transparent p-2 text-sm outline-none cursor-pointer"
+        />
+      </div>
+
       <Select value={priority} onValueChange={setPriority}>
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-[130px]">
           <SelectValue placeholder="Priority" />
         </SelectTrigger>
         <SelectContent>
@@ -64,7 +75,7 @@ export function CreateTaskForm({ onTaskCreated }: { onTaskCreated: () => void })
       </Select>
 
       <Button type="submit">
-        <Plus className="mr-2 h-4 w-4" /> Add Task
+        <Plus className="mr-2 h-4 w-4" /> Add
       </Button>
     </form>
   )

@@ -16,17 +16,23 @@ export function Sidebar() {
         </div>
         
         <nav className="space-y-2">
-          <Button variant="ghost" className="w-full justify-start gap-2">
-            <ListTodo size={18} /> My Tasks
-          </Button>
-          <Button variant="ghost" className="w-full justify-start gap-2">
-            <Share2 size={18} /> Shared with Me
-          </Button>
+          {/* Link to your main Dashboard */}
+          <Link href="/dashboard">
+            <Button variant="ghost" className="w-full justify-start gap-2">
+              <ListTodo size={18} /> My Tasks
+            </Button>
+          </Link>
+
+          {/* Link to the Shared Tasks page */}
+          <Link href="/dashboard/shared">
+            <Button variant="ghost" className="w-full justify-start gap-2">
+              <Share2 size={18} /> Shared with Me
+            </Button>
+          </Link>
         </nav>
       </div>
 
       <div className="space-y-4 border-t pt-4">
-        {/* Dark/Light Mode Toggle [Requirement 10] */}
         <div className="flex items-center justify-between px-2">
           <span className="text-sm font-medium">Theme</span>
           <Button 

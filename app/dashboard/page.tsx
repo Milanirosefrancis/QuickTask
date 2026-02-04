@@ -1,19 +1,16 @@
 "use client"
 
 import { useEffect, useState } from "react"
-// We go up two levels to find the lib folder
 import { createClient } from "../../lib/supabase"
-// We go up two levels to find the components folder
 import { CreateTaskForm } from "../../components/create-task-form"
 import { EditTaskDialog } from "../../components/edit-task-dialog"
 import { ShareTaskDialog } from "../../components/share-task-dialog"
 import { ThemeToggle } from "../../components/theme-toggle" 
-// These stay as @/ because shadcn components usually handle their own alias
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
-import { Trash2, GripVertical } from "lucide-react"
+import { Trash2, GripVertical, Calendar, Clock } from "lucide-react"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
 
 export default function DashboardPage() {
@@ -21,25 +18,35 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [filterPriority, setFilterPriority] = useState("All")
   const supabase = createClient()
+  const playAlert = () => {
+    const audio = new Audio('/notification.mp3'); // Look for the file in the public folder
+    audio.play().catch(e => console.log("Audio play blocked until user clicks page.")); 
+  };
 
   const fetchTasks = async () => {
     const { data } = await supabase
       .from('tasks')
       .select('*')
-      .order('order_index', { ascending: true })
-    if (data) setTasks(data)
-  }
-
-  // UPDATED: This now removes the task instantly when the checkbox is clicked
-  const toggleComplete = async (id: string) => {
-    const { error } = await supabase
-      .from('tasks')
-      .delete()
-      .eq('id', id)
-    
-    if (!error) {
-      fetchTasks()
+      .order('order_index', { ascending: true });
+  
+    if (data) {
+      setTasks(data);
+      
+      // Check if any task is overdue right now
+      const now = new Date();
+      const hasOverdue = data.some(task => 
+        task.due_date && new Date(task.due_date) < now && !task.is_completed
+      );
+  
+      if (hasOverdue) {
+        playAlert(); // Trigger the ding!
+      }
     }
+  };
+
+  const toggleComplete = async (id: string) => {
+    const { error } = await supabase.from('tasks').delete().eq('id', id)
+    if (!error) fetchTasks()
   }
 
   const deleteTask = async (id: string) => {
@@ -53,20 +60,14 @@ export default function DashboardPage() {
     const [reorderedItem] = items.splice(result.source.index, 1)
     items.splice(result.destination.index, 0, reorderedItem)
     setTasks(items)
-
-    await supabase
-      .from('tasks')
-      .update({ order_index: result.destination.index })
-      .eq('id', reorderedItem.id)
+    await supabase.from('tasks').update({ order_index: result.destination.index }).eq('id', reorderedItem.id)
   }
 
   useEffect(() => {
     fetchTasks()
     const channel = supabase
       .channel('realtime-tasks')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
-        fetchTasks()
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => { fetchTasks() })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
@@ -87,15 +88,13 @@ export default function DashboardPage() {
       <CreateTaskForm onTaskCreated={fetchTasks} />
 
       <div className="flex flex-col md:flex-row gap-4 my-6">
-        <div className="relative flex-1">
-          <input 
-            type="text"
-            placeholder="Search tasks..."
-            className="w-full p-2 border rounded-md bg-background"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+        <input 
+          type="text"
+          placeholder="Search tasks..."
+          className="w-full p-2 border rounded-md bg-background flex-1"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
         <select 
           className="p-2 border rounded-md bg-background min-w-[150px]"
           value={filterPriority}
@@ -106,6 +105,11 @@ export default function DashboardPage() {
           <option value="Medium">Medium</option>
           <option value="Low">Low</option>
         </select>
+      </div>
+
+      {/* Task Counter Section */}
+      <div className="mb-4 px-2 text-sm font-medium text-muted-foreground">
+        Showing <span className="text-foreground font-bold">{filteredTasks.length}</span> tasks
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
@@ -122,13 +126,31 @@ export default function DashboardPage() {
                             <div {...provided.dragHandleProps}>
                               <GripVertical className="text-muted-foreground h-5 w-5 cursor-grab" />
                             </div>
-                            <Checkbox 
-                              checked={false} 
-                              onCheckedChange={() => toggleComplete(task.id)} 
-                            />
-                            <span className="text-foreground">
-                              {task.title}
-                            </span>
+                            <Checkbox onCheckedChange={() => toggleComplete(task.id)} />
+                            <div>
+                              <p className="font-medium">{task.title}</p>
+                              {/* Deadline Display Logic */}
+                              {task.due_date && (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <Clock className="h-3 w-3 text-muted-foreground" />
+                                  <span className={`text-xs ${
+                                    new Date(task.due_date) <= new Date() 
+                                    ? "text-destructive font-bold animate-pulse" 
+                                    : "text-muted-foreground"
+                                  }`}>
+                                    {/* .toLocaleString() automatically converts UTC to your local IST time */}
+                                    {new Date(task.due_date).toLocaleString('en-IN', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true,
+                                      day: 'numeric',
+                                      month: 'short'
+                                    })}
+                                  </span>
+  
+                                </div>
+                              )}
+                            </div>
                           </div>
                           
                           <div className="flex items-center gap-2">
