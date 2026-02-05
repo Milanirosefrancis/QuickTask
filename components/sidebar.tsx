@@ -1,14 +1,30 @@
 "use client"
 import Link from "next/link"
+import { useRouter } from "next/navigation" // Added for redirection
+import { createClient } from "@/lib/supabase" // Added to talk to Supabase
 import { Button } from "@/components/ui/button"
 import { useTheme } from "next-themes"
 import { Sun, Moon, LogOut, CheckSquare, ListTodo, Share2 } from "lucide-react"
 
 export function Sidebar() {
   const { setTheme, theme } = useTheme()
+  const router = useRouter() // Initialize the router
+  const supabase = createClient() // Initialize Supabase client
+
+  // New function to handle secure logout
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut() // Tells server to end session
+    
+    if (!error) {
+      router.push("/login") // Sends user back to login page
+      router.refresh() // Cleans the internal cache
+    } else {
+      console.error("Logout failed:", error.message)
+    }
+  }
 
   return (
-    <div className="w-64 border-r bg-card p-6 flex flex-col justify-between h-screen">
+    <div className="hidden md:flex w-64 border-r bg-card p-6 flex-col justify-between h-screen sticky top-0">
       <div>
         <div className="flex items-center gap-2 font-bold text-xl mb-8">
           <CheckSquare className="text-primary h-6 w-6" />
@@ -16,14 +32,12 @@ export function Sidebar() {
         </div>
         
         <nav className="space-y-2">
-          {/* Link to your main Dashboard */}
           <Link href="/dashboard">
             <Button variant="ghost" className="w-full justify-start gap-2">
               <ListTodo size={18} /> My Tasks
             </Button>
           </Link>
 
-          {/* Link to the Shared Tasks page */}
           <Link href="/dashboard/shared">
             <Button variant="ghost" className="w-full justify-start gap-2">
               <Share2 size={18} /> Shared with Me
@@ -45,7 +59,12 @@ export function Sidebar() {
           </Button>
         </div>
 
-        <Button variant="destructive" className="w-full justify-start gap-2">
+        {/* UPDATED: Added onClick listener */}
+        <Button 
+          variant="destructive" 
+          className="w-full justify-start gap-2"
+          onClick={handleLogout}
+        >
           <LogOut size={18} /> Logout
         </Button>
       </div>

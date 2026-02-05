@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Calendar, Clock } from "lucide-react"
+import { Plus, Clock } from "lucide-react"
 
 export function CreateTaskForm({ onTaskCreated }: { onTaskCreated: () => void }) {
   const [title, setTitle] = useState("")
@@ -24,22 +24,34 @@ export function CreateTaskForm({ onTaskCreated }: { onTaskCreated: () => void })
     e.preventDefault()
     if (!title.trim()) return
 
+    // 1. Get the current logged-in user from Supabase Auth
     const { data: { user } } = await supabase.auth.getUser()
-    
+
+    // 2. Safety Check: If no user is logged in, stop the process
+    if (!user) {
+      alert("Please login to add tasks!")
+      return
+    }
+
+    // 3. Insert the task with the user's unique ID
     const { error } = await supabase.from('tasks').insert([
       { 
         title, 
-        user_id: user?.id,
+        user_id: user.id, // Attaching the owner ID
         priority: priority,
+        // Converting the local time to ISO format for the TIMESTAMPTZ column
         due_date: dueDate ? new Date(dueDate).toISOString() : null
       }
     ])
 
     if (!error) {
+      // 4. Reset the form fields after successful creation
       setTitle("")
       setPriority("Medium")
       setDueDate("") 
       onTaskCreated() 
+    } else {
+      console.error("Error creating task:", error.message)
     }
   }
 
@@ -52,7 +64,6 @@ export function CreateTaskForm({ onTaskCreated }: { onTaskCreated: () => void })
         className="flex-1 min-w-[200px]"
       />
 
-      {/* UPDATED: Date AND Time Input Field */}
       <div className="flex items-center gap-2 border rounded-md px-2 bg-background">
         <Clock className="h-4 w-4 text-muted-foreground" />
         <input 

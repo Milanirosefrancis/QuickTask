@@ -18,40 +18,57 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [filterPriority, setFilterPriority] = useState("All")
   const supabase = createClient()
+
   const playAlert = () => {
-    const audio = new Audio('/notification.mp3'); // Look for the file in the public folder
+    const audio = new Audio('/notification.mp3'); 
     audio.play().catch(e => console.log("Audio play blocked until user clicks page.")); 
   };
 
   const fetchTasks = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
     const { data } = await supabase
       .from('tasks')
       .select('*')
+      .eq('user_id', user.id)
       .order('order_index', { ascending: true });
   
     if (data) {
       setTasks(data);
       
-      // Check if any task is overdue right now
       const now = new Date();
       const hasOverdue = data.some(task => 
         task.due_date && new Date(task.due_date) < now && !task.is_completed
       );
   
       if (hasOverdue) {
-        playAlert(); // Trigger the ding!
+        playAlert(); 
       }
     }
   };
 
-  const toggleComplete = async (id: string) => {
-    const { error } = await supabase.from('tasks').delete().eq('id', id)
+  const toggleComplete = async (id: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from('tasks')
+      .update({ is_completed: !currentStatus }) 
+      .eq('id', id)
+    
     if (!error) fetchTasks()
   }
 
   const deleteTask = async (id: string) => {
-    await supabase.from('tasks').delete().eq('id', id)
-    fetchTasks()
+    console.log("Attempting to delete task with ID:", id);
+    const { error } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', id)
+    
+    if (error) {
+      alert("Database error: " + error.message);
+    } else {
+      fetchTasks() 
+    }
   }
 
   const onDragEnd = async (result: DropResult) => {
@@ -63,13 +80,26 @@ export default function DashboardPage() {
     await supabase.from('tasks').update({ order_index: result.destination.index }).eq('id', reorderedItem.id)
   }
 
+  // UPDATED: Fixed typo and added Heartbeat Interval
   useEffect(() => {
-    fetchTasks()
+    fetchTasks();
+
+    // Check for overdue tasks every 60 seconds (Heartbeat)
+    const interval = setInterval(() => {
+      console.log("Heartbeat: Checking time for alerts...");
+      fetchTasks();
+    }, 60000); 
+
     const channel = supabase
       .channel('realtime-tasks')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => { fetchTasks() })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+
+    // Cleanup: Stops the timer and the listener when you leave the page
+    return () => { 
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    }
   }, [])
 
   const filteredTasks = tasks.filter(task => {
@@ -107,7 +137,6 @@ export default function DashboardPage() {
         </select>
       </div>
 
-      {/* Task Counter Section */}
       <div className="mb-4 px-2 text-sm font-medium text-muted-foreground">
         Showing <span className="text-foreground font-bold">{filteredTasks.length}</span> tasks
       </div>
@@ -126,19 +155,22 @@ export default function DashboardPage() {
                             <div {...provided.dragHandleProps}>
                               <GripVertical className="text-muted-foreground h-5 w-5 cursor-grab" />
                             </div>
-                            <Checkbox onCheckedChange={() => toggleComplete(task.id)} />
+                            <Checkbox 
+                              checked={task.is_completed}
+                              onCheckedChange={() => toggleComplete(task.id, task.is_completed)} 
+                            />
                             <div>
-                              <p className="font-medium">{task.title}</p>
-                              {/* Deadline Display Logic */}
+                              <p className={`font-medium ${task.is_completed ? 'line-through text-muted-foreground' : ''}`}>
+                                {task.title}
+                              </p>
                               {task.due_date && (
                                 <div className="flex items-center gap-1 mt-1">
                                   <Clock className="h-3 w-3 text-muted-foreground" />
                                   <span className={`text-xs ${
-                                    new Date(task.due_date) <= new Date() 
+                                    new Date(task.due_date) <= new Date() && !task.is_completed
                                     ? "text-destructive font-bold animate-pulse" 
                                     : "text-muted-foreground"
                                   }`}>
-                                    {/* .toLocaleString() automatically converts UTC to your local IST time */}
                                     {new Date(task.due_date).toLocaleString('en-IN', {
                                       hour: '2-digit',
                                       minute: '2-digit',
@@ -147,7 +179,6 @@ export default function DashboardPage() {
                                       month: 'short'
                                     })}
                                   </span>
-  
                                 </div>
                               )}
                             </div>
@@ -157,10 +188,15 @@ export default function DashboardPage() {
                             <Badge variant="secondary">{task.priority}</Badge>
                             <ShareTaskDialog task={task} />
                             <EditTaskDialog task={task} onUpdate={fetchTasks} />
+                            
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              onClick={() => deleteTask(task.id)}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation(); 
+                                deleteTask(task.id);
+                              }}
                               className="text-destructive hover:bg-destructive/10"
                             >
                               <Trash2 className="h-4 w-4" />
