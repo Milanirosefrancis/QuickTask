@@ -12,3 +12,4 @@ export default function Home() {
 
   return null // Returns nothing because the user is redirected immediately
 }
+// Final build trigger.
